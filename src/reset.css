@@ -1,0 +1,19 @@
+button {
+  all: unset;
+}
+
+input {
+  all: unset;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 100%;
+  font-weight: inherit;
+  line-height: 1;
+  color: inherit;
+  background-color: inherit;
+}
