@@ -5,6 +5,51 @@ import { defineModel, computed, watch, ref, onMounted, onUnmounted } from 'vue';
 
 const snakeGameBoard = ref([]);
 const snake = ref([])
+const direction = ref('right');
+
+const moveSnake = () => {
+  if (direction.value === 'right') {
+    snake.value.push({ x: snake.value[snake.value.length - 1].x + 1, y: snake.value[snake.value.length - 1].y });
+    snake.value.shift();
+  } else if (direction.value === 'left') {
+    snake.value.push({ x: snake.value[snake.value.length - 1].x - 1, y: snake.value[snake.value.length - 1].y });
+    snake.value.shift();
+  } else if (direction.value === 'up') {
+    snake.value.push({ x: snake.value[snake.value.length - 1].x, y: snake.value[snake.value.length - 1].y - 1 });
+    snake.value.shift();
+  } else if (direction.value === 'down') {
+    snake.value.push({ x: snake.value[snake.value.length - 1].x, y: snake.value[snake.value.length - 1].y + 1 });
+    snake.value.shift();
+  }
+}
+
+const changeDirection = (newDirection) => {
+  direction.value = newDirection;
+}
+
+const handleKeyDown = (event) => {
+  console.log(event.key);
+  if (event.key === 'ArrowRight') {
+    changeDirection('right');
+  } else if (event.key === 'ArrowLeft') {
+    changeDirection('left');
+  } else if (event.key === 'ArrowUp') {
+    changeDirection('up');
+  } else if (event.key === 'ArrowDown') {
+    changeDirection('down');
+  }
+}
+
+const detectBoardCollision = () => {
+  if (
+    snake.value[snake.value.length - 1].x < 0 ||
+    snake.value[snake.value.length - 1].x > snakeGameBoard.value[0].length - 1 ||
+    snake.value[snake.value.length - 1].y < 0 ||
+    snake.value[snake.value.length - 1].y > snakeGameBoard.value.length - 1) {
+    return true;
+  }
+  return false;
+}
 
 onMounted(() => {
   snakeGameBoard.value = Array.from({ length: 10 }, () => Array.from({ length: 10 }, () => 0));
@@ -14,6 +59,20 @@ onMounted(() => {
     { x: 2, y: 0 },
   ];
   console.log(snakeGameBoard.value);
+
+  const interval =setInterval(() => {
+    moveSnake();
+    if (detectBoardCollision()) {
+      clearInterval(interval);
+      alert('Game Over');
+    }
+  }, 500);
+
+  window.addEventListener('keydown', handleKeyDown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown);
 });
 
 </script>
