@@ -6,6 +6,11 @@ import { defineModel, computed, watch, ref, onMounted, onUnmounted } from 'vue';
 const snakeGameBoard = ref([]);
 const snake = ref([])
 const direction = ref('right');
+const food = ref()
+const interval = ref(null);
+const speed = ref(500);
+const score = ref(0);
+const isGameOver = ref(false);
 
 const moveSnake = () => {
   if (direction.value === 'right') {
@@ -51,22 +56,86 @@ const detectBoardCollision = () => {
   return false;
 }
 
-onMounted(() => {
+const detectFoodCollision = () => {
+  if (snake.value[snake.value.length - 1].x === food.value.x && snake.value[snake.value.length - 1].y === food.value.y) {
+    score.value++;
+    return true;
+  }
+  return false;
+}
+
+const detectSnakeCollision = () => {
+  const snakeBody = snake.value.slice(0, -1);
+  if (snakeBody.some(item => item.x === snake.value[snake.value.length - 1].x && item.y === snake.value[snake.value.length - 1].y)) {
+    return true;
+  }
+  return false;
+}
+
+const generateFood = () => {
+  while (true) {
+    const food = {
+      x: Math.floor(Math.random() * 10),
+      y: Math.floor(Math.random() * 10),
+    }
+    if (!snake.value.some(item => item.x === food.x && item.y === food.y)) {
+      return food;
+    }
+  }
+}
+
+const initGame = () => {
   snakeGameBoard.value = Array.from({ length: 10 }, () => Array.from({ length: 10 }, () => 0));
   snake.value = [
     { x: 0, y: 0 },
     { x: 1, y: 0 },
     { x: 2, y: 0 },
   ];
-  console.log(snakeGameBoard.value);
+  food.value = generateFood();
+  score.value = 0;
+  isGameOver.value = false;
+  speed.value = 500;
+  direction.value = 'right';
+  if (interval.value) {
+    clearInterval(interval.value);
+  }
+}
 
-  const interval =setInterval(() => {
-    moveSnake();
-    if (detectBoardCollision()) {
-      clearInterval(interval);
-      alert('Game Over');
-    }
-  }, 500);
+const speedUpGame = () => {
+  clearInterval(interval.value);
+  speed.value -= 20;
+  interval.value = setInterval(() => {
+    startGame()
+  }, speed.value);
+}
+
+const startGame = () => {
+  isGameOver.value = false;
+  moveSnake();
+  if (detectBoardCollision() || detectSnakeCollision()) {
+    clearInterval(interval.value);
+    alert(`Game Over, your score is ${score.value}`);
+    isGameOver.value = true;
+  }
+  if (detectFoodCollision()) {
+    food.value = generateFood();
+    snake.value.push(snake.value[snake.value.length - 1]);
+    speedUpGame();
+  }
+}
+
+const restartGame = () => {
+  initGame();
+  interval.value = setInterval(() => {
+    startGame()
+  }, speed.value);
+}
+
+onMounted(() => {
+  initGame();
+  interval.value = setInterval(() => {
+    startGame()
+  }, speed.value);
 
   window.addEventListener('keydown', handleKeyDown);
 });
@@ -79,12 +148,19 @@ onUnmounted(() => {
 
 <template>
   <div class="snake-game-container">
+    <div class="snake-game-score">
+      <span v-if="!isGameOver">Score: {{ score }}</span>
+      <button v-else class="snake-game-start-button" @click="restartGame">Restart</button>
+    </div>
     <div class="snake-game-board">
       <div class="snake-game-board-row" v-for="row, rowIndex in snakeGameBoard" :key="`row-${rowIndex}`">
         <div
           v-for="col, colIndex in row"
           class="snake-game-board-cell"
-          :class="{ 'snake-game-board-cell-snake': snake.some(item => item.x === colIndex && item.y === rowIndex) }"
+          :class="{
+            'snake-game-board-cell-snake': snake.some(item => item.x === colIndex && item.y === rowIndex),
+            'snake-game-board-cell-food': food.x === colIndex && food.y === rowIndex,
+          }"
           :key="`row-${rowIndex}-col-${colIndex}`"
         ></div>
       </div>
@@ -97,6 +173,7 @@ onUnmounted(() => {
   width: 100vw;
   height: 100vh;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
 }
@@ -127,5 +204,20 @@ onUnmounted(() => {
 }
 .snake-game-board-cell-snake {
   background-color: rgba(255, 0, 0, 0.716);
+}
+.snake-game-board-cell-food {
+  background-color: greenyellow;
+}
+.snake-game-score {
+  padding: 10px;
+  font-size: 20px;
+  font-weight: bold;
+}
+.snake-game-start-button {
+  padding: 10px;
+  font-size: 20px;
+  font-weight: bold;
+  background-color: greenyellow;
+  color: red;
 }
 </style>
