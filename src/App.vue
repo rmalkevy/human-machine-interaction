@@ -1,7 +1,8 @@
 <script setup>
-import './reset.css';
+import { v4 as uuidv4 } from 'uuid';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 
-import { defineModel, computed, watch, ref, onMounted, onUnmounted } from 'vue';
+import './reset.css';
 
 const snakeGameBoard = ref([]);
 const snake = ref([])
@@ -11,6 +12,25 @@ const interval = ref(null);
 const speed = ref(500);
 const score = ref(0);
 const isGameOver = ref(false);
+const clientId = uuidv4();
+const competitorScore = ref(0);
+
+const ws = new WebSocket("ws://localhost:3001");
+ws.onopen = () => console.log("✅ Підключено");
+ws.onmessage = (event) => {
+  try {
+    const data = JSON.parse(event.data);
+    if (data.type === 'score' && data.clientId !== clientId) {
+      competitorScore.value = data.score;
+      console.log(`Competitor score: ${competitorScore.value}`);
+    }
+  } catch (error) {
+    
+  } finally {
+    console.log(event.data);
+  }
+}
+ws.onclose = () => console.log("❌ Відключено");
 
 const moveSnake = () => {
   if (direction.value === 'right') {
@@ -131,6 +151,18 @@ const restartGame = () => {
   }, speed.value);
 }
 
+const notifyGamersAboutMyScore = () => {
+  ws.send(JSON.stringify({
+    type: 'score',
+    score: score.value,
+    clientId,
+  }));
+}
+
+watch(score, () => {
+  notifyGamersAboutMyScore();
+});
+
 onMounted(() => {
   initGame();
   interval.value = setInterval(() => {
@@ -149,7 +181,7 @@ onUnmounted(() => {
 <template>
   <div class="snake-game-container">
     <div class="snake-game-score">
-      <span v-if="!isGameOver">Score: {{ score }}</span>
+      <span v-if="!isGameOver">MY SCORE: {{ score }}</span>
       <button v-else class="snake-game-start-button" @click="restartGame">Restart</button>
     </div>
     <div class="snake-game-board">
@@ -165,6 +197,7 @@ onUnmounted(() => {
         ></div>
       </div>
     </div>
+    <span>COMPETITOR SCORE: {{ competitorScore }}</span>
   </div>
 </template>
 
