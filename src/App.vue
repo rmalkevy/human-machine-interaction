@@ -1,55 +1,57 @@
 <script setup>
 import { v4 as uuidv4 } from 'uuid';
 import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { useWebSocketScore } from './composables/useWebSocketScore';
 
 import './reset.css';
 
+const BOARD_SIZE = 10;
+const INITIAL_SPEED = 500;
+const SPEED_INCREMENT = 20;
+const INITIAL_SNAKE = () => [
+  { x: 0, y: 0 },
+  { x: 1, y: 0 },
+  { x: 2, y: 0 },
+];
+const DIRECTIONS = {
+  right: { x: 1, y: 0 },
+  left: { x: -1, y: 0 },
+  up: { x: 0, y: -1 },
+  down: { x: 0, y: 1 },
+};
+
 const snakeGameBoard = ref([]);
-const snake = ref([])
+const snake = ref(INITIAL_SNAKE());
 const direction = ref('right');
 const food = ref()
 const interval = ref(null);
-const speed = ref(500);
+const speed = ref(INITIAL_SPEED);
 const score = ref(0);
 const isGameOver = ref(false);
 const clientId = uuidv4();
-const competitorScore = ref(0);
 
-const ws = new WebSocket("ws://localhost:3001");
-ws.onopen = () => console.log("✅ Підключено");
-ws.onmessage = (event) => {
-  try {
-    const data = JSON.parse(event.data);
-    if (data.type === 'score' && data.clientId !== clientId) {
-      competitorScore.value = data.score;
-      console.log(`Competitor score: ${competitorScore.value}`);
-    }
-  } catch (error) {
-    
-  } finally {
-    console.log(event.data);
-  }
-}
-ws.onclose = () => console.log("❌ Відключено");
+const { competitorScore } = useWebSocketScore(score);
 
 const moveSnake = () => {
-  if (direction.value === 'right') {
-    snake.value.push({ x: snake.value[snake.value.length - 1].x + 1, y: snake.value[snake.value.length - 1].y });
-    snake.value.shift();
-  } else if (direction.value === 'left') {
-    snake.value.push({ x: snake.value[snake.value.length - 1].x - 1, y: snake.value[snake.value.length - 1].y });
-    snake.value.shift();
-  } else if (direction.value === 'up') {
-    snake.value.push({ x: snake.value[snake.value.length - 1].x, y: snake.value[snake.value.length - 1].y - 1 });
-    snake.value.shift();
-  } else if (direction.value === 'down') {
-    snake.value.push({ x: snake.value[snake.value.length - 1].x, y: snake.value[snake.value.length - 1].y + 1 });
-    snake.value.shift();
-  }
+  const head = snake.value[snake.value.length - 1];
+  const move = DIRECTIONS[direction.value];
+  const newHead = { x: head.x + move.x, y: head.y + move.y };
+
+  snake.value.push(newHead);
+  snake.value.shift();
 }
 
 const changeDirection = (newDirection) => {
-  direction.value = newDirection;
+  const opposite = {
+    right: 'left',
+    left: 'right',
+    up: 'down',
+    down: 'up',
+  };
+
+  if (opposite[newDirection] !== direction.value) {
+    direction.value = newDirection;
+  }
 }
 
 const handleKeyDown = (event) => {
@@ -66,14 +68,13 @@ const handleKeyDown = (event) => {
 }
 
 const detectBoardCollision = () => {
-  if (
-    snake.value[snake.value.length - 1].x < 0 ||
-    snake.value[snake.value.length - 1].x > snakeGameBoard.value[0].length - 1 ||
-    snake.value[snake.value.length - 1].y < 0 ||
-    snake.value[snake.value.length - 1].y > snakeGameBoard.value.length - 1) {
-    return true;
-  }
-  return false;
+  const head = snake.value.at(-1);
+  return (
+    head.x < 0 ||
+    head.y < 0 ||
+    head.x >= BOARD_SIZE ||
+    head.y >= BOARD_SIZE
+  );
 }
 
 const detectFoodCollision = () => {
@@ -94,27 +95,23 @@ const detectSnakeCollision = () => {
 
 const generateFood = () => {
   while (true) {
-    const food = {
-      x: Math.floor(Math.random() * 10),
-      y: Math.floor(Math.random() * 10),
-    }
-    if (!snake.value.some(item => item.x === food.x && item.y === food.y)) {
-      return food;
+    const newFood = {
+      x: Math.floor(Math.random() * BOARD_SIZE),
+      y: Math.floor(Math.random() * BOARD_SIZE),
+    };
+    if (!snake.value.some(p => p.x === newFood.x && p.y === newFood.y)) {
+      return newFood;
     }
   }
-}
+};
 
 const initGame = () => {
-  snakeGameBoard.value = Array.from({ length: 10 }, () => Array.from({ length: 10 }, () => 0));
-  snake.value = [
-    { x: 0, y: 0 },
-    { x: 1, y: 0 },
-    { x: 2, y: 0 },
-  ];
+  snakeGameBoard.value = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => 0));
+  snake.value = INITIAL_SNAKE();
   food.value = generateFood();
   score.value = 0;
   isGameOver.value = false;
-  speed.value = 500;
+  speed.value = INITIAL_SPEED;
   direction.value = 'right';
   if (interval.value) {
     clearInterval(interval.value);
@@ -123,7 +120,7 @@ const initGame = () => {
 
 const speedUpGame = () => {
   clearInterval(interval.value);
-  speed.value -= 20;
+  speed.value -= SPEED_INCREMENT;
   interval.value = setInterval(() => {
     startGame()
   }, speed.value);
@@ -150,18 +147,6 @@ const restartGame = () => {
     startGame()
   }, speed.value);
 }
-
-const notifyGamersAboutMyScore = () => {
-  ws.send(JSON.stringify({
-    type: 'score',
-    score: score.value,
-    clientId,
-  }));
-}
-
-watch(score, () => {
-  notifyGamersAboutMyScore();
-});
 
 onMounted(() => {
   initGame();
